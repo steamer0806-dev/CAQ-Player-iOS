@@ -1,0 +1,26 @@
+
+workflows:
+  ios-build:
+    name: CAQ Player iOS
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      xcode: latest
+    scripts:
+      - name: Extract project ZIP
+        script: |
+          unzip -o CAQPlayer_Native_iOS_Project.zip -d "$CM_BUILD_DIR"
+
+      - name: Build iOS Simulator app
+        script: |
+          xcodebuild \
+            -project "$CM_BUILD_DIR/CAQPlayer.xcodeproj" \
+            -scheme CAQPlayer \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -derivedDataPath "$CM_BUILD_DIR/build" \
+            CODE_SIGNING_ALLOWED=NO build
+
+    artifacts:
+      - build/Build/Products/Debug-iphonesimulator/*.app
+      - /tmp/xcodebuild_logs/*.log
