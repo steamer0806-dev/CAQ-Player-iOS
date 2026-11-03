@@ -16,7 +16,7 @@ workflows:
           xcodebuild \
             -project "$CM_BUILD_DIR/CAQPlayer.xcodeproj" \
             -scheme CAQPlayer \
-            -destination 'generic/platform=iOS Simulator' \
+            -sdk iphonesimulator \
             -configuration Debug \
             -derivedDataPath "$CM_BUILD_DIR/build" \
             CODE_SIGNING_ALLOWED=NO build
