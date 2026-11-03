@@ -9,7 +9,7 @@ workflows:
     scripts:
       - name: Extract project ZIP
         script: |
-          unzip -o CAQPlayer_Native_iOS_Project_REPAIRED.zip -d "$CM_BUILD_DIR"
+          unzip -o CAQPlayer_Native_iOS_Project_FIXED.zip -d "$CM_BUILD_DIR"
 
       - name: Build iOS Simulator app
         script: |
