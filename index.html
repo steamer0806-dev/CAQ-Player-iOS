@@ -24,19 +24,28 @@ function show(id){["home","play","result"].forEach(x=>$(x).classList.toggle("hid
 function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 async function zipEntry(buf,wanted){const v=new DataView(buf),b=new Uint8Array(buf);let e=-1;for(let i=b.length-22;i>=Math.max(0,b.length-65557);i--)if(v.getUint32(i,true)===0x06054b50){e=i;break}if(e<0)throw Error("Not a supported ZIP-based CAQ quiz.");let p=v.getUint32(e+16,true),n=v.getUint16(e+10,true);for(let i=0;i<n;i++){if(v.getUint32(p,true)!==0x02014b50)throw Error("Damaged ZIP directory.");let method=v.getUint16(p+10,true),size=v.getUint32(p+20,true),nl=v.getUint16(p+28,true),el=v.getUint16(p+30,true),cl=v.getUint16(p+32,true),lo=v.getUint32(p+42,true),name=new TextDecoder().decode(b.slice(p+46,p+46+nl));if(name===wanted){let st=lo+30+v.getUint16(lo+26,true)+v.getUint16(lo+28,true),data=b.slice(st,st+size);if(method===0)return data;if(method===8&&"DecompressionStream"in window){let ds=new DecompressionStream("deflate-raw");return new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(ds)).arrayBuffer())}throw Error("This Safari version cannot decompress this quiz archive.")}p+=46+nl+el+cl}throw Error("No tempQuz.quz found in this file.")}
 function parse(text,subject){
-  let out=[];
-  for(let raw of text.replace(/^\uFEFF/,"").split(">><<")){
-    let a=raw.split("<>");
-    if((a[0]||"").trim()!=="multipleChoiceV2")continue;
-    let opts=[],explanation="";
-    for(let x of a.slice(3)){
-      x=x.trim();
-      if(x.startsWith("X")){explanation=x.slice(1).trim();continue}
-      if((x[0]==="C"||x[0]==="W")&&x.slice(1).trim())
-        opts.push({text:x.slice(1).trim(),correct:x[0]==="C"});
+  const out=[];
+  const records=text.replace(/^\uFEFF/,"").split(">><<");
+  for(const raw of records){
+    const fields=raw.split("<>");
+    if((fields[0]||"").trim()!=="multipleChoiceV2")continue;
+    const question=(fields[1]||"").trim();
+    const opts=[];
+    let explanation="";
+    for(let i=3;i<fields.length;i++){
+      const field=(fields[i]||"").trim();
+      if(!field)continue;
+      if(/^X/i.test(field)){
+        explanation=field.slice(1).trim();
+        continue;
+      }
+      if((field[0]==="C"||field[0]==="W")&&field.slice(1).trim()){
+        opts.push({text:field.slice(1).trim(),correct:field[0]==="C"});
+      }
     }
-    if((a[1]||"").trim()&&opts.length>=2&&opts.filter(x=>x.correct).length===1)
-      out.push({question:a[1].trim(),options:opts,subject,answer:null,explanation});
+    if(question&&opts.length>=2&&opts.filter(o=>o.correct).length===1){
+      out.push({question,options:opts,subject,answer:null,explanation});
+    }
   }
   if(!out.length)throw Error("No supported multiple-choice questions were found.");
   return out;
@@ -64,8 +73,9 @@ $("file").onchange=async e=>{
     let raw=await zipEntry(await f.arrayBuffer(),"tempQuz.quz");
     let subject=f.name.replace(/\.quiz$/i,"").replace(/[_-]+/g," ").trim()||"Unknown subject";
     let qs=parse(new TextDecoder("utf-8").decode(raw),subject),sourceId="file-"+(++sourceCounter);
+    const explanationCount=qs.filter(q=>q.explanation&&q.explanation.trim()).length;
     qs.forEach(q=>q.sourceId=sourceId);bank.push(...qs);updateFiles();
-    $("status").textContent=`Added ${qs.length} questions from ${subject}. You can add another subject.`;
+    $("status").textContent=`Added ${qs.length} questions from ${subject}, including ${explanationCount} written explanations. You can add another subject.`;
   }catch(err){$("status").textContent=err.message}
   e.target.value="";
 };
@@ -129,7 +139,7 @@ function showExplanation(){
   const correct=q.options.find(o=>o.correct),box=$("explanation");
   const message=q.explanation&&q.explanation.trim()
     ? q.explanation
-    : "Correct answer: "+correct.text+". This quiz file does not include a written explanation for this question.";
+    : "Correct answer: "+correct.text+". No written explanation was found in the imported X field for this question. Return to the main menu and check that the imported file reports its explanation count.";
   box.textContent=message;
   box.classList.remove("hidden");
   say(message);
