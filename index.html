@@ -12,6 +12,7 @@
 <div class="timerbar"><div id="timerfill" class="timerfill"></div></div>
 <div class="row" style="align-items:center"><label class="small" for="timeChoice">Time per question</label>
 <select id="timeChoice" aria-label="Time per question" style="background:#263752;color:white"><option value="3">3 seconds</option><option value="5" selected>5 seconds</option><option value="10">10 seconds</option></select></div>
+<label class="toggle"><input id="timerAutoNext" type="checkbox" checked> Automatic Next Question (Timer Mode only)</label>
 <p class="small">The question and choices are read automatically. The countdown starts after reading, then the answer is revealed and the next question begins automatically.</p></div>
 <div id="question" class="q"></div><div id="answers" class="answers"></div><div id="feedback" class="feedback"></div>
 <div class="row"><button id="reveal" class="primary">Reveal Answer</button><button id="read" class="secondary">🔊 Read question</button><button id="explain" class="secondary">💡 Explanation</button></div><div id="explanation" class="explanation hidden"></div>
@@ -20,7 +21,14 @@
 <section id="result" class="panel hidden"><h2>Mixed quiz summary</h2><div id="score" class="score"></div><p id="overall" style="text-align:center"></p><h3>Subject breakdown</h3><div id="breakdown"></div><h3>Answer review</h3><div id="review"></div><button id="retakeWrong" class="primary" style="width:100%">Retake wrong answers</button><button id="retakeAll" class="secondary" style="width:100%;margin-top:8px">Retake all questions</button><button id="homeBtn" class="quiet" style="width:100%;margin-top:8px">Add / change quiz files</button><button id="mainMenu" class="quiet" style="width:100%;margin-top:8px">Back to Main Menu</button></section></main>
 <script>
 const $=id=>document.getElementById(id);let bank=[],session=[],at=0,log=[],timer=5,left=5,deadline=0,tick=null,revealed=false,auto=true,rate=.9,quizMode="normal",timerPaused=false,timerStarted=false,autoNextId=null;
-function show(id){["home","play","result"].forEach(x=>$(x).classList.toggle("hidden",x!==id))}
+function stopPlayback(){
+ stopTimer();stopAutoNext();timerStarted=false;timerPaused=false;
+ if("speechSynthesis"in window)window.speechSynthesis.cancel();
+}
+function show(id){
+ if(id!=="play")stopPlayback();
+ ["home","play","result"].forEach(x=>$(x).classList.toggle("hidden",x!==id));
+}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 async function zipEntry(buf,wanted){let v=new DataView(buf),b=new Uint8Array(buf),e=-1;for(let i=b.length-22;i>=Math.max(0,b.length-65557);i--)if(v.getUint32(i,true)===0x06054b50){e=i;break}if(e<0)throw Error("Not a supported ZIP-based .quiz file.");let p=v.getUint32(e+16,true),n=v.getUint16(e+10,true);for(let i=0;i<n;i++){let method=v.getUint16(p+10,true),size=v.getUint32(p+20,true),nl=v.getUint16(p+28,true),el=v.getUint16(p+30,true),cl=v.getUint16(p+32,true),lo=v.getUint32(p+42,true),name=new TextDecoder().decode(b.slice(p+46,p+46+nl));if(name===wanted){let st=lo+30+v.getUint16(lo+26,true)+v.getUint16(lo+28,true),d=b.slice(st,st+size);if(method===0)return d;if(method===8&&"DecompressionStream"in window){let ds=new DecompressionStream("deflate-raw");return new Uint8Array(await new Response(new Blob([d]).stream().pipeThrough(ds)).arrayBuffer())}throw Error("This Safari version cannot unzip this file.")}p+=46+nl+el+cl}throw Error("No tempQuz.quz found in this .quiz file.")}
@@ -86,11 +94,19 @@ function startTimerMode(){
 }
 function beginCountdown(){if(!timerStarted||timerPaused||revealed)return;$("timerLabel").textContent="Countdown running";startTimer()}
 function begin(list=bank){
+ stopPlayback();
  session=shuffle(list.map(q=>({...q,options:shuffle(q.options.map(o=>({...o}))),chosen:null})));
  log=[];at=0;auto=$("autoHome").checked;rate=+$("speedHome").value;
  quizMode=document.querySelector('input[name="quizMode"]:checked').value;
  $("autoPlay").checked=auto;$("autoLabel").textContent=auto?"ON":"OFF";$("speedPlay").value=String(rate);
- $("luck").classList.add("show");setTimeout(()=>$("luck").classList.remove("show"),1200);show("play");render();
+ $("luck").classList.add("show");show("play");
+ if(quizMode==="timer"){
+  // Let the complete Good Luck animation finish before the first question is spoken.
+  setTimeout(()=>{$("luck").classList.remove("show");if(!$("play").classList.contains("hidden"))render()},1500);
+ }else{
+  setTimeout(()=>$("luck").classList.remove("show"),1200);
+  render();
+ }
 }
 function render(){
  stopTimer();stopAutoNext();if("speechSynthesis"in window)window.speechSynthesis.cancel();
@@ -119,7 +135,7 @@ function choose(i){
  const correctText=q.options.find(o=>o.correct)?.text||"";
  if(quizMode==="timer"){
   const spoken=ok?"Correct. The correct answer is "+correctText+".":"Incorrect. The correct answer is "+correctText+".";
-  say(spoken,()=>{if(revealed)next()});
+  say(spoken,()=>{if(revealed&&$("timerAutoNext").checked)next()});
  }else{
   say(ok?"Correct.":"Incorrect. The correct answer is "+correctText+".");
  }
@@ -148,7 +164,7 @@ function reveal(expired){
  // Timer Mode announces the answer only when the countdown expires unanswered.
  // If the user answered early, choose() announces feedback and then advances.
  if(quizMode==="timer"&&q.chosen===null){
-  say("The correct answer is "+q.options[ci].text+".",()=>{if(revealed)next()});
+  say("The correct answer is "+q.options[ci].text+".",()=>{if(revealed&&$("timerAutoNext").checked)next()});
  }else if(expired&&quizMode!=="timer"){
   say("Time is up. The correct answer is "+q.options[ci].text+".");
  }
@@ -165,5 +181,5 @@ $("timeChoice").onchange=()=>{
  }
 };
 
-$("retakeWrong").onclick=()=>begin(session.filter((q,i)=>!log[i].correct));$("retakeAll").onclick=()=>begin(session);$("homeBtn").onclick=()=>{show("home");updateHome()};$("mainMenu").onclick=()=>{bank=[];updateHome();show("home")};$("exit").onclick=()=>{stopTimer();if("speechSynthesis"in window)speechSynthesis.cancel();show("home")};
+$("retakeWrong").onclick=()=>begin(session.filter((q,i)=>!log[i].correct));$("retakeAll").onclick=()=>begin(session);$("homeBtn").onclick=()=>{stopPlayback();show("home");updateHome()};$("mainMenu").onclick=()=>{stopPlayback();bank=[];updateHome();show("home")};$("exit").onclick=()=>{stopPlayback();show("home")};
 </script></body></html>
