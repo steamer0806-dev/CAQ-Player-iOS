@@ -17,7 +17,7 @@
 <div class="row"><button id="next" class="primary">Next Question</button><button id="finish" class="quiet">Finish Quiz</button></div><div class="row"><button id="exit" class="quiet">Back to Main Menu</button></div></section>
 <section id="result" class="panel hidden"><h2>Mixed quiz summary</h2><div id="score" class="score"></div><p id="overall" style="text-align:center"></p><h3>Subject breakdown</h3><div id="breakdown"></div><h3>Answer review</h3><div id="review"></div><button id="retakeWrong" class="primary" style="width:100%">Retake wrong answers</button><button id="retakeAll" class="secondary" style="width:100%;margin-top:8px">Retake all questions</button><button id="homeBtn" class="quiet" style="width:100%;margin-top:8px">Add / change quiz files</button><button id="mainMenu" class="quiet" style="width:100%;margin-top:8px">Back to Main Menu</button></section></main>
 <script>
-const $=id=>document.getElementById(id);let bank=[],session=[],at=0,log=[],timer=5,left=5,deadline=0,tick=null,revealed=false,auto=true,rate=.9,quizMode="normal",timerPaused=false,timerStarted=false,timerModeActivated=false,autoNextId=null;
+const $=id=>document.getElementById(id);let bank=[],session=[],at=0,log=[],timer=5,left=5,deadline=0,tick=null,revealed=false,auto=true,rate=.9,quizMode="normal",timerPaused=false,timerStarted=false,autoNextId=null;
 function show(id){["home","play","result"].forEach(x=>$(x).classList.toggle("hidden",x!==id))}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
@@ -83,21 +83,32 @@ function render(){
  if(timed){$("timerLabel").textContent="Reading question and choices…";startTimerMode()}else if(auto)readQ();
 }
 function choose(i){
- let q=session[at];if(revealed||q.chosen!==null)return;
- q.chosen=i;let ok=q.options[i].correct;log[at]={question:q,chosen:i,correct:ok};stopTimer();
+ const q=session[at];if(revealed||q.chosen!==null)return;
+ q.chosen=i;
+ const ok=q.options[i].correct;
+ log[at]={question:q,chosen:i,correct:ok};
+ stopTimer();
  reveal(false);
  $("feedback").textContent=ok?"✓ Correct!":"✗ Incorrect.";
  $("feedback").className="feedback "+(ok?"good":"bad");
  const correctText=q.options.find(o=>o.correct)?.text||"";
- const spoken=ok?"Correct.":"Incorrect. The correct answer is "+correctText+".";
- if(quizMode==="timer")say(spoken,()=>{if(revealed)next()});else say(spoken);
+ if(quizMode==="timer"){
+  const spoken=ok?"Correct. The correct answer is "+correctText+".":"Incorrect. The correct answer is "+correctText+".";
+  say(spoken,()=>{if(revealed)next()});
+ }else{
+  say(ok?"Correct.":"Incorrect. The correct answer is "+correctText+".");
+ }
 }
 function reveal(expired){
  if(revealed)return;
  revealed=true;stopTimer();timerStarted=false;timerPaused=false;stopAutoNext();
  if("speechSynthesis"in window)window.speechSynthesis.cancel();
  const q=session[at],ci=q.options.findIndex(o=>o.correct);
- [...$("answers").children].forEach((btn,i)=>{btn.disabled=true;if(i===ci)btn.classList.add("correct");if(q.chosen===i&&!q.options[i].correct)btn.classList.add("wrong")});
+ [...$("answers").children].forEach((btn,i)=>{
+  btn.disabled=true;
+  if(i===ci)btn.classList.add("correct");
+  if(q.chosen===i&&!q.options[i].correct)btn.classList.add("wrong");
+ });
  if(q.chosen===null){
   log[at]={question:q,chosen:null,correct:false};
   $("feedback").textContent=expired?"Time is up! Correct answer revealed.":"Correct answer revealed.";
@@ -105,17 +116,23 @@ function reveal(expired){
  }
  $("reveal").disabled=true;$("reveal").textContent="Answer Revealed";
  $("timerLabel").textContent=expired?"Time expired":"Answer revealed";
- if(q.explanation){$("explanation").textContent="Explanation: "+q.explanation;$("explanation").classList.remove("hidden")}
- if(quizMode==="timer"){
-  const spoken=q.chosen===null?"The correct answer is "+q.options[ci].text+".":"Answer revealed.";
-  say(spoken,()=>{if(revealed)next()});
- }else if(expired)say("Time is up. The correct answer is "+q.options[ci].text+".");
+ if(q.explanation){
+  $("explanation").textContent="Explanation: "+q.explanation;
+  $("explanation").classList.remove("hidden");
+ }
+ // Timer Mode announces the answer only when the countdown expires unanswered.
+ // If the user answered early, choose() announces feedback and then advances.
+ if(quizMode==="timer"&&q.chosen===null){
+  say("The correct answer is "+q.options[ci].text+".",()=>{if(revealed)next()});
+ }else if(expired&&quizMode!=="timer"){
+  say("Time is up. The correct answer is "+q.options[ci].text+".");
+ }
 }
 function next(){stopTimer();stopAutoNext();if("speechSynthesis"in window)window.speechSynthesis.cancel();if(!revealed){if(session[at].chosen===null)log[at]={question:session[at],chosen:null,correct:false};reveal(false)}if(at<session.length-1){at++;render()}else finish()}
 function finish(){stopTimer();stopAutoNext();if("speechSynthesis"in window)window.speechSynthesis.cancel();let n=log.filter(x=>x&&x.correct).length;$("score").textContent=`${n}/${session.length}`;$("overall").textContent=`${Math.round(n/session.length*100)}% correct`;$("breakdown").innerHTML=[...new Set(session.map(q=>q.subject))].map(s=>{let a=log.filter(x=>x&&x.question.subject===s);return `<div class="explanation"><b>${esc(s)}</b><br>${a.filter(x=>x.correct).length}/${a.length} correct</div>`}).join("");$("review").innerHTML=log.map((x,i)=>{let q=x.question,ans=x.chosen===null?"Not answered":q.options[x.chosen].text,correct=q.options.find(o=>o.correct).text;return `<div class="review"><b>${i+1}. ${esc(q.question)}</b><p class="${x.correct?"right":"wrongtxt"}">Your answer: ${esc(ans)}</p><p class="right">Correct answer: ${esc(correct)}</p>${q.explanation?`<p>${esc(q.explanation)}</p>`:""}</div>`}).join("");$("retakeWrong").disabled=!log.some(x=>!x.correct);show("result")}
 $("start").onclick=()=>begin();$("reveal").onclick=()=>reveal(false);$("next").onclick=next;$("finish").onclick=finish;$("read").onclick=readQ;$("explain").onclick=()=>{let e=session[at].explanation||"No explanation is included in this question file.";$("explanation").textContent="Explanation: "+e;$("explanation").classList.remove("hidden");say(e)};$("autoPlay").onchange=()=>{auto=$("autoPlay").checked;$("autoLabel").textContent=auto?"ON":"OFF"};$("speedHome").onchange=()=>{rate=+$("speedHome").value;$("speedPlay").value=String(rate)};
 $("speedPlay").onchange=()=>{rate=+$("speedPlay").value;$("speedHome").value=String(rate)};
-$("timeChoice").onchange=()=>{timer=+$("timeChoice").value;left=timer;$("time").textContent=timer;$("timerfill").style.width="100%";if(timerStarted&&!revealed){stopTimer();timerStarted=false;startTimerMode()}};
+$("timeChoice").onchange=()=>{timer=+$("timeChoice").value;left=timer;$("time").textContent=timer;$("timerfill").style.width="100%";if(quizMode==="timer"&&timerStarted&&!revealed){stopTimer();timerStarted=false;startTimerMode()}};left=timer;$("time").textContent=timer;$("timerfill").style.width="100%";if(timerStarted&&!revealed){stopTimer();timerStarted=false;startTimerMode()}};
 
 $("retakeWrong").onclick=()=>begin(session.filter((q,i)=>!log[i].correct));$("retakeAll").onclick=()=>begin(session);$("homeBtn").onclick=()=>{show("home");updateHome()};$("mainMenu").onclick=()=>{bank=[];updateHome();show("home")};$("exit").onclick=()=>{stopTimer();if("speechSynthesis"in window)speechSynthesis.cancel();show("home")};
 </script></body></html>
