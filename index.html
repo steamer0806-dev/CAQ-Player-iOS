@@ -43,6 +43,14 @@ function readQ(){let q=session[at];say(q.question+". "+q.options.map((o,i)=>"Opt
 function stopTimer(){if(tick)clearInterval(tick);tick=null}function stopAutoNext(){if(autoNextId)clearTimeout(autoNextId);autoNextId=null}
 function startTimer(){stopTimer();timer=+$("timeChoice").value;left=timer;deadline=Date.now()+timer*1000;updateTimer();tick=setInterval(updateTimer,100)}
 function updateTimer(){left=Math.max(0,(deadline-Date.now())/1000);$("time").textContent=Math.ceil(left);$("timerfill").style.width=(left/timer*100)+"%";$("time").classList.toggle("urgent",left<=2);if(left<=0){stopTimer();reveal(true)}}
+let availableVoices=[];
+function refreshVoices(){
+ if("speechSynthesis"in window)availableVoices=window.speechSynthesis.getVoices()||[];
+}
+if("speechSynthesis"in window){
+ refreshVoices();
+ window.speechSynthesis.onvoiceschanged=refreshVoices;
+}
 function startTimerMode(){
  if(revealed||timerStarted)return;
  stopAutoNext();timerStarted=true;timerPaused=false;
@@ -78,7 +86,7 @@ function render(){
  $("feedback").textContent="";$("feedback").className="feedback";$("explanation").classList.add("hidden");$("explanation").textContent="";
  $("reveal").disabled=false;$("reveal").textContent="Reveal Answer";
  const timed=quizMode==="timer";$("timerbox").classList.toggle("hidden",!timed);
- $("timerLabel").textContent=timed?"Tap Start to read the question first":"Normal Mode";
+ $("timerLabel").textContent=timed?"Reading question and choices…":"Normal Mode";
  $("time").textContent=timer;$("timerfill").style.width="100%";
  if(timed){$("timerLabel").textContent="Reading question and choices…";startTimerMode()}else if(auto)readQ();
 }
@@ -132,7 +140,13 @@ function next(){stopTimer();stopAutoNext();if("speechSynthesis"in window)window.
 function finish(){stopTimer();stopAutoNext();if("speechSynthesis"in window)window.speechSynthesis.cancel();let n=log.filter(x=>x&&x.correct).length;$("score").textContent=`${n}/${session.length}`;$("overall").textContent=`${Math.round(n/session.length*100)}% correct`;$("breakdown").innerHTML=[...new Set(session.map(q=>q.subject))].map(s=>{let a=log.filter(x=>x&&x.question.subject===s);return `<div class="explanation"><b>${esc(s)}</b><br>${a.filter(x=>x.correct).length}/${a.length} correct</div>`}).join("");$("review").innerHTML=log.map((x,i)=>{let q=x.question,ans=x.chosen===null?"Not answered":q.options[x.chosen].text,correct=q.options.find(o=>o.correct).text;return `<div class="review"><b>${i+1}. ${esc(q.question)}</b><p class="${x.correct?"right":"wrongtxt"}">Your answer: ${esc(ans)}</p><p class="right">Correct answer: ${esc(correct)}</p>${q.explanation?`<p>${esc(q.explanation)}</p>`:""}</div>`}).join("");$("retakeWrong").disabled=!log.some(x=>!x.correct);show("result")}
 $("start").onclick=()=>begin();$("reveal").onclick=()=>reveal(false);$("next").onclick=next;$("finish").onclick=finish;$("read").onclick=readQ;$("explain").onclick=()=>{let e=session[at].explanation||"No explanation is included in this question file.";$("explanation").textContent="Explanation: "+e;$("explanation").classList.remove("hidden");say(e)};$("autoPlay").onchange=()=>{auto=$("autoPlay").checked;$("autoLabel").textContent=auto?"ON":"OFF"};$("speedHome").onchange=()=>{rate=+$("speedHome").value;$("speedPlay").value=String(rate)};
 $("speedPlay").onchange=()=>{rate=+$("speedPlay").value;$("speedHome").value=String(rate)};
-$("timeChoice").onchange=()=>{timer=+$("timeChoice").value;left=timer;$("time").textContent=timer;$("timerfill").style.width="100%";if(quizMode==="timer"&&timerStarted&&!revealed){stopTimer();timerStarted=false;startTimerMode()}};left=timer;$("time").textContent=timer;$("timerfill").style.width="100%";if(timerStarted&&!revealed){stopTimer();timerStarted=false;startTimerMode()}};
+$("timeChoice").onchange=()=>{
+ timer=+$("timeChoice").value;left=timer;
+ $("time").textContent=timer;$("timerfill").style.width="100%";
+ if(quizMode==="timer"&&timerStarted&&!revealed){
+  stopTimer();timerStarted=false;startTimerMode();
+ }
+};
 
 $("retakeWrong").onclick=()=>begin(session.filter((q,i)=>!log[i].correct));$("retakeAll").onclick=()=>begin(session);$("homeBtn").onclick=()=>{show("home");updateHome()};$("mainMenu").onclick=()=>{bank=[];updateHome();show("home")};$("exit").onclick=()=>{stopTimer();if("speechSynthesis"in window)speechSynthesis.cancel();show("home")};
 </script></body></html>
