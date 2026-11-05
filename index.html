@@ -10,13 +10,19 @@
 <div id="timerbox" class="timerbox hidden">
 <div class="timerline"><div><div class="small">TIME LEFT</div><div id="time" class="time">5</div></div><div id="timerLabel" class="small">Tap Start to read the question first</div></div>
 <div class="timerbar"><div id="timerfill" class="timerfill"></div></div>
-<div class="row" style="align-items:center"><label class="small" for="timeChoice">Time per question</label>
-<select id="timeChoice" aria-label="Time per question" style="background:#263752;color:white"><option value="3">3 seconds</option><option value="5" selected>5 seconds</option><option value="10">10 seconds</option></select></div>
-<label class="toggle"><input id="timerAutoNext" type="checkbox" checked> Automatic Next Question (Timer Mode only)</label>
-<p class="small">The question and choices are read automatically. The countdown starts after reading, then the answer is revealed and the next question begins automatically.</p></div>
+<p class="small">Question audio finishes before the countdown begins.</p></div>
 <div id="question" class="q"></div><div id="answers" class="answers"></div><div id="feedback" class="feedback"></div>
-<div class="row"><button id="reveal" class="primary">Reveal Answer</button><button id="read" class="secondary">🔊 Read question</button><button id="explain" class="secondary">💡 Explanation</button></div><div id="explanation" class="explanation hidden"></div>
-<label class="toggle"><input id="autoPlay" type="checkbox" checked> Automatic reading <b id="autoLabel">ON</b></label><label class="toggle">Voice speed <select id="speedPlay" style="background:#263752;color:white"><option value="0.9" selected>0.9×</option><option value="1">1.0×</option><option value="1.025">1.025×</option><option value="1.1">1.1×</option></select></label>
+<details class="settings" style="margin:14px 0;padding:12px;border:1px solid #52627a;border-radius:12px">
+<summary style="font-weight:700;cursor:pointer">⚙ Settings</summary>
+<div class="row" style="margin-top:12px"><button id="reveal" class="primary">Reveal Answer</button><button id="read" class="secondary">🔊 Read question</button><button id="explain" class="secondary">💡 Explanation</button></div>
+<div id="explanation" class="explanation hidden"></div>
+<label class="toggle"><input id="autoPlay" type="checkbox" checked> Automatic reading <b id="autoLabel">ON</b></label>
+<label class="toggle">Voice speed <select id="speedPlay" style="background:#263752;color:white"><option value="0.9" selected>0.9×</option><option value="1">1.0×</option><option value="1.025">1.025×</option><option value="1.1">1.1×</option></select></label>
+<div id="timerSettings">
+<label class="toggle">Time per question <select id="timeChoice" aria-label="Time per question" style="background:#263752;color:white"><option value="3">3 seconds</option><option value="5" selected>5 seconds</option><option value="10">10 seconds</option></select></label>
+<label class="toggle"><input id="timerAutoNext" type="checkbox" checked> Automatic Next Question (Timer Mode only)</label>
+</div>
+</details>
 <div class="row"><button id="next" class="primary">Next Question</button><button id="finish" class="quiet">Finish Quiz</button></div><div class="row"><button id="exit" class="quiet">Back to Main Menu</button></div></section>
 <section id="result" class="panel hidden"><h2>Mixed quiz summary</h2><div id="score" class="score"></div><p id="overall" style="text-align:center"></p><h3>Subject breakdown</h3><div id="breakdown"></div><h3>Answer review</h3><div id="review"></div><button id="retakeWrong" class="primary" style="width:100%">Retake wrong answers</button><button id="retakeAll" class="secondary" style="width:100%;margin-top:8px">Retake all questions</button><button id="homeBtn" class="quiet" style="width:100%;margin-top:8px">Add / change quiz files</button><button id="mainMenu" class="quiet" style="width:100%;margin-top:8px">Back to Main Menu</button></section></main>
 <script>
@@ -51,9 +57,9 @@ $("file").addEventListener("change",async e=>{
  }finally{e.target.value=""}
 });
 function say(t,onDone){
- if(!("speechSynthesis"in window)){if(onDone)setTimeout(onDone,1800);return;}
+ if(!("speechSynthesis"in window)){if(onDone)setTimeout(onDone,1200);return;}
  speechSynthesis.cancel();
- let u=new SpeechSynthesisUtterance(t);u.rate=rate;
+ const u=new SpeechSynthesisUtterance(t);u.rate=rate;
  const voices=speechSynthesis.getVoices();
  const femaleHints=/samantha|ava|zoe|karen|tessa|moira|fiona|female|serena|victoria|susan|allison|joanna|aria/i;
  const english=voices.filter(v=>/^en(-|$)/i.test(v.lang));
@@ -61,7 +67,7 @@ function say(t,onDone){
  if(preferred)u.voice=preferred;
  let completed=false;
  const done=()=>{if(completed)return;completed=true;if(onDone)onDone()};
- if(onDone){u.onend=done;u.onerror=done;setTimeout(done,Math.max(2500,t.length*75));}
+ if(onDone){u.onend=done;u.onerror=done;}
  speechSynthesis.speak(u);
 }
 function readQ(){let q=session[at];say(q.question+". "+q.options.map((o,i)=>"Option "+String.fromCharCode(65+i)+". "+o.text).join(". "))}
@@ -80,16 +86,20 @@ function startTimerMode(){
  if(revealed||timerStarted)return;
  stopAutoNext();timerStarted=true;timerPaused=false;
  $("timerLabel").textContent="Reading question and choices…";
- const q=session[at],text=q.question+". "+q.options.map((o,i)=>"Option "+String.fromCharCode(65+i)+". "+o.text).join(". ");
- if(!("speechSynthesis"in window)){beginCountdown();return}
- window.speechSynthesis.cancel();refreshVoices();
+ const q=session[at];
+ const text=q.question+". "+q.options.map((o,i)=>"Option "+String.fromCharCode(65+i)+". "+o.text).join(". ");
+ const startAfterReading=()=>{if(timerStarted&&!timerPaused&&!revealed&&!$("play").classList.contains("hidden"))beginCountdown()};
+ if(!("speechSynthesis"in window)){startAfterReading();return;}
+ window.speechSynthesis.cancel();
  const u=new SpeechSynthesisUtterance(text);u.rate=rate;u.pitch=1.03;
+ const voices=window.speechSynthesis.getVoices();
  const hints=/samantha|ava|zoe|karen|tessa|moira|fiona|female|serena|victoria|susan|allison|joanna|aria/i;
- const en=availableVoices.filter(v=>/^en(-|$)/i.test(v.lang));
- const voice=en.find(v=>hints.test(v.name))||en[0]||availableVoices[0];
+ const en=voices.filter(v=>/^en(-|$)/i.test(v.lang));
+ const voice=en.find(v=>hints.test(v.name))||en[0]||voices[0];
  if(voice)u.voice=voice;
- u.onend=()=>{if(timerStarted&&!timerPaused&&!revealed)beginCountdown()};
- u.onerror=()=>{if(timerStarted&&!timerPaused&&!revealed)beginCountdown()};
+ let completed=false;
+ const done=()=>{if(completed)return;completed=true;startAfterReading()};
+ u.onend=done;u.onerror=done;
  window.speechSynthesis.speak(u);
 }
 function beginCountdown(){if(!timerStarted||timerPaused||revealed)return;$("timerLabel").textContent="Countdown running";startTimer()}
@@ -118,7 +128,7 @@ function render(){
  q.options.forEach((o,i)=>{const btn=document.createElement("button");btn.className="answer";btn.textContent=String.fromCharCode(65+i)+". "+o.text;btn.onclick=()=>choose(i);$("answers").appendChild(btn)});
  $("feedback").textContent="";$("feedback").className="feedback";$("explanation").classList.add("hidden");$("explanation").textContent="";
  $("reveal").disabled=false;$("reveal").textContent="Reveal Answer";
- const timed=quizMode==="timer";$("timerbox").classList.toggle("hidden",!timed);
+ const timed=quizMode==="timer";$("timerbox").classList.toggle("hidden",!timed);$("timerSettings").classList.toggle("hidden",!timed);
  $("timerLabel").textContent=timed?"Reading question and choices…":"Normal Mode";
  $("time").textContent=timer;$("timerfill").style.width="100%";
  if(timed){$("timerLabel").textContent="Reading question and choices…";startTimerMode()}else if(auto)readQ();
