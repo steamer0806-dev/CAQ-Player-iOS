@@ -10,9 +10,7 @@
 <div class="timerbar"><div id="timerfill" class="timerfill"></div></div>
 <div class="row" style="align-items:center"><label class="small" for="timeChoice">Time per question</label>
 <select id="timeChoice" aria-label="Time per question" style="background:#263752;color:white"><option value="3">3 seconds</option><option value="5" selected>5 seconds</option><option value="10">10 seconds</option></select></div>
-<div class="row"><button id="timerStart" class="primary">▶ Start</button><button id="timerPause" class="secondary" disabled>Ⅱ Pause</button><button id="timerStop" class="quiet" disabled>■ Stop</button></div>
-<label class="toggle"><input id="autoNext" type="checkbox"> Automatic Next Question</label>
-</div>
+<p class="small">The question and choices are read automatically. The countdown starts after reading, then the answer is revealed and the next question begins automatically.</p></div>
 <div id="question" class="q"></div><div id="answers" class="answers"></div><div id="feedback" class="feedback"></div>
 <div class="row"><button id="reveal" class="primary">Reveal Answer</button><button id="read" class="secondary">🔊 Read question</button><button id="explain" class="secondary">💡 Explanation</button></div><div id="explanation" class="explanation hidden"></div>
 <label class="toggle"><input id="autoPlay" type="checkbox" checked> Automatic reading <b id="autoLabel">ON</b></label><label class="toggle">Voice speed <select id="speedPlay" style="background:#263752;color:white"><option value="0.9" selected>0.9×</option><option value="1">1.0×</option><option value="1.025">1.025×</option><option value="1.1">1.1×</option></select></label>
@@ -27,27 +25,28 @@ async function zipEntry(buf,wanted){let v=new DataView(buf),b=new Uint8Array(buf
 function parse(text,subject){let out=[];for(let raw of text.replace(/^\uFEFF/,"").split(">><<")){let a=raw.split("<>");if((a[0]||"").trim()!=="multipleChoiceV2")continue;let opts=[];for(let x of a.slice(3)){x=x.trim();if((x[0]==="C"||x[0]==="W")&&x.slice(1).trim())opts.push({text:x.slice(1).trim(),correct:x[0]==="C"})}if((a[1]||"").trim()&&opts.length>=2&&opts.filter(x=>x.correct).length===1){let ex=a.slice(3).find(x=>/^X/i.test(x.trim()));out.push({question:a[1].trim(),options:opts,subject,explanation:ex?ex.trim().slice(1).trim():""})}}if(!out.length)throw Error("No supported multiple-choice questions found.");return out}
 function updateHome(){let subs=[...new Set(bank.map(q=>q.subject))];$("files").innerHTML=subs.map(s=>`<div class="fileitem"><span><b>${esc(s)}</b><br><span class="small">${bank.filter(q=>q.subject===s).length} questions</span></span><button class="remove" data-x="${esc(s)}">✕</button></div>`).join("");$("total").textContent=bank.length?`${bank.length} questions from ${subs.length} subject file(s).`:"No questions added yet.";$("start").classList.toggle("hidden",!bank.length);document.querySelectorAll("[data-x]").forEach(b=>b.onclick=()=>{bank=bank.filter(q=>q.subject!==b.dataset.x);updateHome()})}
 $("file").onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let d=await zipEntry(await f.arrayBuffer(),"tempQuz.quz"),qs=parse(new TextDecoder().decode(d),f.name.replace(/\.quiz$/i,""));bank.push(...qs);$("status").textContent=`Added ${qs.length} questions from ${f.name}.`;updateHome()}catch(err){$("status").textContent=err.message}e.target.value=""};
-function say(t){
-if(!("speechSynthesis"in window))return;
-speechSynthesis.cancel();
-let u=new SpeechSynthesisUtterance(t);u.rate=rate;
-const voices=speechSynthesis.getVoices();
-const femaleHints=/samantha|ava|zoe|karen|tessa|moira|fiona|female|serena|victoria|susan|allison|joanna|aria/i;
-const english=voices.filter(v=>/^en(-|$)/i.test(v.lang));
-const preferred=english.find(v=>femaleHints.test(v.name)) || voices.find(v=>femaleHints.test(v.name));
-if(preferred)u.voice=preferred;
-speechSynthesis.speak(u);
+function say(t,onDone){
+ if(!("speechSynthesis"in window)){if(onDone)setTimeout(onDone,1800);return;}
+ speechSynthesis.cancel();
+ let u=new SpeechSynthesisUtterance(t);u.rate=rate;
+ const voices=speechSynthesis.getVoices();
+ const femaleHints=/samantha|ava|zoe|karen|tessa|moira|fiona|female|serena|victoria|susan|allison|joanna|aria/i;
+ const english=voices.filter(v=>/^en(-|$)/i.test(v.lang));
+ const preferred=english.find(v=>femaleHints.test(v.name))||english[0]||voices[0];
+ if(preferred)u.voice=preferred;
+ let completed=false;
+ const done=()=>{if(completed)return;completed=true;if(onDone)onDone()};
+ if(onDone){u.onend=done;u.onerror=done;setTimeout(done,Math.max(2500,t.length*75));}
+ speechSynthesis.speak(u);
 }
 function readQ(){let q=session[at];say(q.question+". "+q.options.map((o,i)=>"Option "+String.fromCharCode(65+i)+". "+o.text).join(". "))}
 function stopTimer(){if(tick)clearInterval(tick);tick=null}function stopAutoNext(){if(autoNextId)clearTimeout(autoNextId);autoNextId=null}
 function startTimer(){stopTimer();timer=+$("timeChoice").value;left=timer;deadline=Date.now()+timer*1000;updateTimer();tick=setInterval(updateTimer,100)}
 function updateTimer(){left=Math.max(0,(deadline-Date.now())/1000);$("time").textContent=Math.ceil(left);$("timerfill").style.width=(left/timer*100)+"%";$("time").classList.toggle("urgent",left<=2);if(left<=0){stopTimer();reveal(true)}}
-function setTimerControls(running,paused=false){$("timerStart").disabled=running&&!paused;$("timerPause").disabled=!running;$("timerPause").textContent=paused?"▶ Resume":"Ⅱ Pause";$("timerStop").disabled=!running&&!timerStarted}
 function startTimerMode(){
  if(revealed||timerStarted)return;
- timerModeActivated=true;
  stopAutoNext();timerStarted=true;timerPaused=false;
- $("timerLabel").textContent="Reading question and choices…";setTimerControls(true,false);
+ $("timerLabel").textContent="Reading question and choices…";
  const q=session[at],text=q.question+". "+q.options.map((o,i)=>"Option "+String.fromCharCode(65+i)+". "+o.text).join(". ");
  if(!("speechSynthesis"in window)){beginCountdown();return}
  window.speechSynthesis.cancel();refreshVoices();
@@ -61,37 +60,10 @@ function startTimerMode(){
  window.speechSynthesis.speak(u);
 }
 function beginCountdown(){if(!timerStarted||timerPaused||revealed)return;$("timerLabel").textContent="Countdown running";startTimer()}
-function pauseTimerMode(){
- if(!timerStarted||revealed)return;
- timerPaused=true;stopTimer();
- if("speechSynthesis"in window&&window.speechSynthesis.speaking)window.speechSynthesis.pause();
- $("timerLabel").textContent="Paused";setTimerControls(true,true);
-}
-function resumeTimerMode(){
- if(!timerStarted||!timerPaused||revealed)return;
- timerPaused=false;
- if("speechSynthesis"in window&&window.speechSynthesis.paused){
-  window.speechSynthesis.resume();$("timerLabel").textContent="Resuming audio…";
- }else if(left<timer&&left>0){
-  deadline=Date.now()+left*1000;tick=setInterval(updateTimer,100);$("timerLabel").textContent="Countdown running";
- }else{startTimerModeResumeSpeech()}
- setTimerControls(true,false);
-}
-function startTimerModeResumeSpeech(){
- const q=session[at],text=q.question+". "+q.options.map((o,i)=>"Option "+String.fromCharCode(65+i)+". "+o.text).join(". ");
- if(!("speechSynthesis"in window)){beginCountdown();return}
- const u=new SpeechSynthesisUtterance(text);u.rate=rate;u.pitch=1.03;u.onend=beginCountdown;u.onerror=beginCountdown;window.speechSynthesis.speak(u);
-}
-function stopTimerMode(){
- stopTimer();stopAutoNext();if("speechSynthesis"in window)window.speechSynthesis.cancel();
- timerStarted=false;timerPaused=false;left=timer;
- $("time").textContent=timer;$("timerfill").style.width="100%";$("timerLabel").textContent="Stopped — tap Start to restart this question";
- $("timerStart").disabled=false;setTimerControls(false,false);
-}
 function begin(list=bank){
  session=shuffle(list.map(q=>({...q,options:shuffle(q.options.map(o=>({...o}))),chosen:null})));
  log=[];at=0;auto=$("autoHome").checked;rate=+$("speedHome").value;
- quizMode=document.querySelector('input[name="quizMode"]:checked').value;timerModeActivated=false;
+ quizMode=document.querySelector('input[name="quizMode"]:checked').value;
  $("autoPlay").checked=auto;$("autoLabel").textContent=auto?"ON":"OFF";$("speedPlay").value=String(rate);
  $("luck").classList.add("show");setTimeout(()=>$("luck").classList.remove("show"),1200);show("play");render();
 }
@@ -108,24 +80,43 @@ function render(){
  const timed=quizMode==="timer";$("timerbox").classList.toggle("hidden",!timed);
  $("timerLabel").textContent=timed?"Tap Start to read the question first":"Normal Mode";
  $("time").textContent=timer;$("timerfill").style.width="100%";
- if(timed){
-  $("timerStart").disabled=false;$("timerPause").disabled=true;$("timerStop").disabled=true;$("timerPause").textContent="Ⅱ Pause";
-  if(timerModeActivated){$("timerStart").disabled=true;$("timerLabel").textContent="Preparing next question…";setTimeout(()=>{if(quizMode==="timer"&&!revealed&&!timerStarted)startTimerMode()},120)}
- }else if(auto)readQ();
+ if(timed){$("timerLabel").textContent="Reading question and choices…";startTimerMode()}else if(auto)readQ();
 }
-function choose(i){let q=session[at];if(revealed||q.chosen!==null)return;q.chosen=i;let ok=q.options[i].correct;log[at]={question:q,chosen:i,correct:ok};stopTimer();reveal(false);$("feedback").textContent=ok?"✓ Correct!":"✗ Incorrect.";$("feedback").className="feedback "+(ok?"good":"bad");
-if(quizMode==="normal"){if(ok)say("Correct.");else{let correctText=q.options.find(o=>o.correct)?.text||"The correct answer is highlighted in green.";say("Incorrect. The correct answer is "+correctText+".")}}
-else if(auto)say(ok?"Correct.":"Incorrect.")
+function choose(i){
+ let q=session[at];if(revealed||q.chosen!==null)return;
+ q.chosen=i;let ok=q.options[i].correct;log[at]={question:q,chosen:i,correct:ok};stopTimer();
+ reveal(false);
+ $("feedback").textContent=ok?"✓ Correct!":"✗ Incorrect.";
+ $("feedback").className="feedback "+(ok?"good":"bad");
+ let correctText=q.options.find(o=>o.correct)?.text||"";
+ let spoken=ok?"Correct.":"Incorrect. The correct answer is "+correctText+".";
+ if(quizMode==="timer")say(spoken,()=>{if(revealed)next()});
+ else say(spoken);
 }
-function reveal(expired){if(revealed)return;revealed=true;stopTimer();timerStarted=false;timerPaused=false;stopAutoNext();if("speechSynthesis"in window)window.speechSynthesis.cancel();let q=session[at],ci=q.options.findIndex(o=>o.correct);[...$("answers").children].forEach((b,i)=>{b.disabled=true;if(i===ci)b.classList.add("correct");if(q.chosen===i&&!q.options[i].correct)b.classList.add("wrong")});if(q.chosen===null){log[at]={question:q,chosen:null,correct:false};$("feedback").textContent=expired?"Time is up! Correct answer revealed.":"Correct answer revealed.";$("feedback").className="feedback bad"}$("reveal").disabled=true;$("reveal").textContent="Answer Revealed";$("timerLabel").textContent=expired?"Time expired":"Answer revealed";if(expired){say("Time is up. The correct answer is "+q.options[ci].text+".");}
-else if(quizMode==="timer"&&q.chosen===null){say("The correct answer is "+q.options[ci].text+".");}if(q.explanation){$("explanation").textContent="Explanation: "+q.explanation;$("explanation").classList.remove("hidden")}if(quizMode==="timer"&&$("autoNext").checked){autoNextId=setTimeout(()=>{if(revealed)next()},4500)}}
+function reveal(expired){
+ if(revealed)return;
+ revealed=true;stopTimer();timerStarted=false;timerPaused=false;stopAutoNext();
+ if("speechSynthesis"in window)window.speechSynthesis.cancel();
+ let q=session[at],ci=q.options.findIndex(o=>o.correct);
+ [...$("answers").children].forEach((b,i)=>{b.disabled=true;if(i===ci)b.classList.add("correct");if(q.chosen===i&&!q.options[i].correct)b.classList.add("wrong")});
+ if(q.chosen===null){
+  log[at]={question:q,chosen:null,correct:false};
+  $("feedback").textContent=expired?"Time is up! Correct answer revealed.":"Correct answer revealed.";
+  $("feedback").className="feedback bad";
+ }
+ $("reveal").disabled=true;$("reveal").textContent="Answer Revealed";
+ $("timerLabel").textContent=expired?"Time expired":"Answer revealed";
+ if(q.explanation){$("explanation").textContent="Explanation: "+q.explanation;$("explanation").classList.remove("hidden")}
+ if(quizMode==="timer"){
+  let spoken=(expired||q.chosen===null)?"The correct answer is "+q.options[ci].text+".":"Answer revealed.";
+  say(spoken,()=>{if(revealed)next()});
+ }else if(expired){say("Time is up. The correct answer is "+q.options[ci].text+".")}
+}
 function next(){stopTimer();stopAutoNext();if("speechSynthesis"in window)window.speechSynthesis.cancel();if(!revealed){if(session[at].chosen===null)log[at]={question:session[at],chosen:null,correct:false};reveal(false)}if(at<session.length-1){at++;render()}else finish()}
 function finish(){stopTimer();stopAutoNext();if("speechSynthesis"in window)window.speechSynthesis.cancel();let n=log.filter(x=>x&&x.correct).length;$("score").textContent=`${n}/${session.length}`;$("overall").textContent=`${Math.round(n/session.length*100)}% correct`;$("breakdown").innerHTML=[...new Set(session.map(q=>q.subject))].map(s=>{let a=log.filter(x=>x&&x.question.subject===s);return `<div class="explanation"><b>${esc(s)}</b><br>${a.filter(x=>x.correct).length}/${a.length} correct</div>`}).join("");$("review").innerHTML=log.map((x,i)=>{let q=x.question,ans=x.chosen===null?"Not answered":q.options[x.chosen].text,correct=q.options.find(o=>o.correct).text;return `<div class="review"><b>${i+1}. ${esc(q.question)}</b><p class="${x.correct?"right":"wrongtxt"}">Your answer: ${esc(ans)}</p><p class="right">Correct answer: ${esc(correct)}</p>${q.explanation?`<p>${esc(q.explanation)}</p>`:""}</div>`}).join("");$("retakeWrong").disabled=!log.some(x=>!x.correct);show("result")}
 $("start").onclick=()=>begin();$("reveal").onclick=()=>reveal(false);$("next").onclick=next;$("finish").onclick=finish;$("read").onclick=readQ;$("explain").onclick=()=>{let e=session[at].explanation||"No explanation is included in this question file.";$("explanation").textContent="Explanation: "+e;$("explanation").classList.remove("hidden");say(e)};$("autoPlay").onchange=()=>{auto=$("autoPlay").checked;$("autoLabel").textContent=auto?"ON":"OFF"};$("speedHome").onchange=()=>{rate=+$("speedHome").value;$("speedPlay").value=String(rate)};
 $("speedPlay").onchange=()=>{rate=+$("speedPlay").value;$("speedHome").value=String(rate)};
-$("timeChoice").onchange=()=>{timer=+$("timeChoice").value;left=timer;$("time").textContent=timer;$("timerfill").style.width="100%";if(timerStarted&&!revealed)stopTimerMode()};
-$("timerStart").onclick=()=>startTimerMode();
-$("timerPause").onclick=()=>timerPaused?resumeTimerMode():pauseTimerMode();
-$("timerStop").onclick=()=>stopTimerMode();
+$("timeChoice").onchange=()=>{timer=+$("timeChoice").value;left=timer;$("time").textContent=timer;$("timerfill").style.width="100%";if(timerStarted&&!revealed){stopTimer();timerStarted=false;startTimerMode()}};
+
 $("retakeWrong").onclick=()=>begin(session.filter((q,i)=>!log[i].correct));$("retakeAll").onclick=()=>begin(session);$("homeBtn").onclick=()=>{show("home");updateHome()};$("mainMenu").onclick=()=>{bank=[];updateHome();show("home")};$("exit").onclick=()=>{stopTimer();if("speechSynthesis"in window)speechSynthesis.cancel();show("home")};
 </script></body></html>
