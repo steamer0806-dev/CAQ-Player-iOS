@@ -1,0 +1,195 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101827"><title>CAQ Player — Timed Review</title>
+<style>
+:root{color-scheme:dark;--bg:#101827;--panel:#1b2940;--line:#34445f;--blue:#4f8cff;--green:#20c879;--red:#ff5964}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#f5f7fb;font:16px -apple-system,BlinkMacSystemFont,sans-serif}main{max-width:760px;margin:auto;padding:20px 15px 48px}header{display:flex;gap:12px;align-items:center;margin:10px 0 22px}.logo{background:var(--blue);padding:12px;border-radius:14px;font-weight:900}h1{font-size:22px;margin:0}h2{font-size:20px;margin:0 0 10px}p{color:#b7c4d8;line-height:1.5}.small{font-size:13px;color:#aebdd2}.panel{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:18px;margin:14px 0}button,.pick,select{border:0;border-radius:13px;padding:12px 14px;font-size:15px;font-weight:700;cursor:pointer}.primary,.pick{background:var(--blue);color:white}.secondary{background:#34445f;color:white}.quiet{background:transparent;color:#c7d2e3;border:1px solid var(--line)}.hidden{display:none!important}#file{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2}.pick{display:block;text-align:center;margin:15px 0}.row{display:flex;gap:9px;flex-wrap:wrap;margin-top:13px}.row button{flex:1}.toggle{display:flex;align-items:center;gap:10px;margin:13px 0;color:#dce6f5}.toggle input{width:20px;height:20px}.fileitem{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid var(--line)}.remove{background:#4a202a;color:white}.top{display:flex;justify-content:space-between;color:#bdcbe0;font-size:13px}.subject{display:inline-block;background:#244878;color:#d9e9ff;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:800;margin:10px 0}.q{font-size:21px;line-height:1.45;margin:18px 0}.answers{display:grid;gap:10px}.answer{width:100%;text-align:left;background:#263752;color:white;border:2px solid transparent;line-height:1.4}.answer.correct{background:#123d32;border-color:var(--green)}.answer.wrong{background:#4a202a;border-color:var(--red)}.answer:disabled{opacity:1}.progress,.timerbar{height:8px;background:#34445f;border-radius:9px;overflow:hidden;margin:12px 0}.bar,.timerfill{height:100%;background:var(--blue);width:0}.timerfill{background:var(--green)}.timerbox{background:#142137;border:1px solid var(--line);border-radius:14px;padding:13px;margin:14px 0}.timerline{display:flex;justify-content:space-between;align-items:center}.time{font-size:29px;font-weight:900;font-variant-numeric:tabular-nums}.urgent{color:var(--red)}.feedback{min-height:26px;font-weight:800;margin:12px 0}.good{color:var(--green)}.bad{color:var(--red)}.explanation{background:#263752;border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:12px}.score{font-size:46px;font-weight:900;text-align:center}.review{padding:12px 0;border-top:1px solid var(--line)}.right{color:var(--green);font-weight:800}.wrongtxt{color:var(--red);font-weight:800}.luck{position:fixed;inset:0;z-index:9;background:#07101eee;display:flex;align-items:center;justify-content:center;text-align:center;font-size:42px;font-weight:900;opacity:0;pointer-events:none;transition:opacity .2s}.luck.show{opacity:1}
+</style></head><body><main><header><div class="logo">CAQ</div><div><h1>CAQ Player</h1><div class="small">Mixed-subject quiz · Timed answer reveal · iPhone</div></div></header><div id="luck" class="luck">Good Luck<br>Future Engineer!</div>
+<section id="home" class="panel"><h2>Build your mixed quiz</h2><p>Add your subject .quiz files one at a time. All imported questions join one shuffled quiz.</p><div class="pick" style="position:relative;overflow:hidden">＋ Add a File
+<input id="file" type="file" accept=".quiz,application/zip,application/octet-stream" aria-label="Choose a quiz file">
+</div><div id="files"></div><div id="total" class="small">No questions added yet.</div>
+<div style="margin:14px 0"><b>Choose quiz mode</b><div class="row"><label class="toggle"><input type="radio" name="quizMode" value="normal" checked> Normal Mode</label><label class="toggle"><input type="radio" name="quizMode" value="timer"> Timer Mode</label></div><p class="small">Normal Mode keeps the original CAQ Player behavior. Timer Mode waits for Start, reads the question and choices, then starts the countdown.</p></div><label class="toggle"><input id="autoHome" type="checkbox" checked> Automatic reading in Normal Mode</label><label class="toggle">Voice speed <select id="speedHome" style="background:#263752;color:white"><option value="0.9" selected>0.9×</option><option value="1">1.0×</option><option value="1.025">1.025×</option><option value="1.1">1.1×</option></select></label><button id="start" class="primary hidden" style="width:100%">Play Quiz</button><div id="status" class="small"></div></section>
+<section id="play" class="panel hidden"><div class="top"><span id="counter"></span><span id="liveScore"></span></div><div class="progress"><div id="bar" class="bar"></div></div><div id="subject" class="subject"></div>
+<div id="timerbox" class="timerbox hidden">
+<div class="timerline"><div><div class="small">TIME LEFT</div><div id="time" class="time">5</div></div><div id="timerLabel" class="small">Tap Start to read the question first</div></div>
+<div class="timerbar"><div id="timerfill" class="timerfill"></div></div>
+<p class="small">Question audio finishes before the countdown begins.</p></div>
+<div id="question" class="q"></div><div id="answers" class="answers"></div><div id="feedback" class="feedback"></div>
+<details class="settings" style="margin:14px 0;padding:12px;border:1px solid #52627a;border-radius:12px">
+<summary style="font-weight:700;cursor:pointer">⚙ Settings</summary>
+<div class="row" style="margin-top:12px"><button id="reveal" class="primary">Reveal Answer</button><button id="read" class="secondary">🔊 Read question</button><button id="explain" class="secondary">💡 Explanation</button></div>
+<div id="explanation" class="explanation hidden"></div>
+<label class="toggle"><input id="autoPlay" type="checkbox" checked> Automatic reading <b id="autoLabel">ON</b></label>
+<label class="toggle">Voice speed <select id="speedPlay" style="background:#263752;color:white"><option value="0.9" selected>0.9×</option><option value="1">1.0×</option><option value="1.025">1.025×</option><option value="1.1">1.1×</option></select></label>
+<div id="timerSettings">
+<label class="toggle">Time per question <select id="timeChoice" aria-label="Time per question" style="background:#263752;color:white"><option value="3">3 seconds</option><option value="5" selected>5 seconds</option><option value="10">10 seconds</option></select></label>
+<label class="toggle"><input id="timerAutoNext" type="checkbox" checked> Automatic Next Question (Timer Mode only)</label>
+</div>
+</details>
+<div class="row"><button id="next" class="primary">Next Question</button><button id="finish" class="quiet">Finish Quiz</button></div><div class="row"><button id="exit" class="quiet">Back to Main Menu</button></div></section>
+<section id="result" class="panel hidden"><h2>Mixed quiz summary</h2><div id="score" class="score"></div><p id="overall" style="text-align:center"></p><h3>Subject breakdown</h3><div id="breakdown"></div><h3>Answer review</h3><div id="review"></div><button id="retakeWrong" class="primary" style="width:100%">Retake wrong answers</button><button id="retakeAll" class="secondary" style="width:100%;margin-top:8px">Retake all questions</button><button id="homeBtn" class="quiet" style="width:100%;margin-top:8px">Add / change quiz files</button><button id="mainMenu" class="quiet" style="width:100%;margin-top:8px">Back to Main Menu</button></section></main>
+<script>
+const $=id=>document.getElementById(id);let bank=[],session=[],at=0,log=[],timer=5,left=5,deadline=0,tick=null,revealed=false,auto=true,rate=.9,quizMode="normal",timerPaused=false,timerStarted=false,autoNextId=null;
+function stopPlayback(){
+ stopTimer();stopAutoNext();timerStarted=false;timerPaused=false;
+ if("speechSynthesis"in window)window.speechSynthesis.cancel();
+}
+function show(id){
+ if(id!=="play")stopPlayback();
+ ["home","play","result"].forEach(x=>$(x).classList.toggle("hidden",x!==id));
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+async function zipEntry(buf,wanted){let v=new DataView(buf),b=new Uint8Array(buf),e=-1;for(let i=b.length-22;i>=Math.max(0,b.length-65557);i--)if(v.getUint32(i,true)===0x06054b50){e=i;break}if(e<0)throw Error("Not a supported ZIP-based .quiz file.");let p=v.getUint32(e+16,true),n=v.getUint16(e+10,true);for(let i=0;i<n;i++){let method=v.getUint16(p+10,true),size=v.getUint32(p+20,true),nl=v.getUint16(p+28,true),el=v.getUint16(p+30,true),cl=v.getUint16(p+32,true),lo=v.getUint32(p+42,true),name=new TextDecoder().decode(b.slice(p+46,p+46+nl));if(name===wanted){let st=lo+30+v.getUint16(lo+26,true)+v.getUint16(lo+28,true),d=b.slice(st,st+size);if(method===0)return d;if(method===8&&"DecompressionStream"in window){let ds=new DecompressionStream("deflate-raw");return new Uint8Array(await new Response(new Blob([d]).stream().pipeThrough(ds)).arrayBuffer())}throw Error("This Safari version cannot unzip this file.")}p+=46+nl+el+cl}throw Error("No tempQuz.quz found in this .quiz file.")}
+function parse(text,subject){let out=[];for(let raw of text.replace(/^\uFEFF/,"").split(">><<")){let a=raw.split("<>");if((a[0]||"").trim()!=="multipleChoiceV2")continue;let opts=[];for(let x of a.slice(3)){x=x.trim();if((x[0]==="C"||x[0]==="W")&&x.slice(1).trim())opts.push({text:x.slice(1).trim(),correct:x[0]==="C"})}if((a[1]||"").trim()&&opts.length>=2&&opts.filter(x=>x.correct).length===1){let ex=a.slice(3).find(x=>/^X/i.test(x.trim()));out.push({question:a[1].trim(),options:opts,subject,explanation:ex?ex.trim().slice(1).trim():""})}}if(!out.length)throw Error("No supported multiple-choice questions found.");return out}
+function updateHome(){let subs=[...new Set(bank.map(q=>q.subject))];$("files").innerHTML=subs.map(s=>`<div class="fileitem"><span><b>${esc(s)}</b><br><span class="small">${bank.filter(q=>q.subject===s).length} questions</span></span><button class="remove" data-x="${esc(s)}">✕</button></div>`).join("");$("total").textContent=bank.length?`${bank.length} questions from ${subs.length} subject file(s).`:"No questions added yet.";$("start").classList.toggle("hidden",!bank.length);document.querySelectorAll("[data-x]").forEach(b=>b.onclick=()=>{bank=bank.filter(q=>q.subject!==b.dataset.x);updateHome()})}
+$("file").addEventListener("change",async e=>{
+ const f=e.target.files&&e.target.files[0];if(!f)return;
+ $("status").textContent="Opening "+f.name+"…";
+ try{
+  const buf=await f.arrayBuffer();
+  const d=await zipEntry(buf,"tempQuz.quz");
+  const qs=parse(new TextDecoder().decode(d),f.name.replace(/\.quiz$/i,""));
+  bank.push(...qs);
+  $("status").textContent=`Added ${qs.length} questions from ${f.name}.`;
+  updateHome();
+ }catch(err){
+  const msg=err&&err.message?err.message:String(err);
+  $("status").textContent="Could not add file: "+msg;
+  alert("CAQ Player could not import this file: "+msg);
+ }finally{e.target.value=""}
+});
+function say(t,onDone){
+ if(!("speechSynthesis"in window)){if(onDone)setTimeout(onDone,1200);return;}
+ speechSynthesis.cancel();
+ const u=new SpeechSynthesisUtterance(t);u.rate=rate;
+ const voices=speechSynthesis.getVoices();
+ const femaleHints=/samantha|ava|zoe|karen|tessa|moira|fiona|female|serena|victoria|susan|allison|joanna|aria/i;
+ const english=voices.filter(v=>/^en(-|$)/i.test(v.lang));
+ const preferred=english.find(v=>femaleHints.test(v.name))||english[0]||voices[0];
+ if(preferred)u.voice=preferred;
+ let completed=false;
+ const done=()=>{if(completed)return;completed=true;if(onDone)onDone()};
+ if(onDone){u.onend=done;u.onerror=done;}
+ speechSynthesis.speak(u);
+}
+function readQ(){let q=session[at];say(q.question+". "+q.options.map((o,i)=>"Option "+String.fromCharCode(65+i)+". "+o.text).join(". "))}
+function stopTimer(){if(tick)clearInterval(tick);tick=null}function stopAutoNext(){if(autoNextId)clearTimeout(autoNextId);autoNextId=null}
+function startTimer(){stopTimer();timer=+$("timeChoice").value;left=timer;deadline=Date.now()+timer*1000;updateTimer();tick=setInterval(updateTimer,100)}
+function updateTimer(){left=Math.max(0,(deadline-Date.now())/1000);$("time").textContent=Math.ceil(left);$("timerfill").style.width=(left/timer*100)+"%";$("time").classList.toggle("urgent",left<=2);if(left<=0){stopTimer();reveal(true)}}
+let availableVoices=[];
+function refreshVoices(){
+ if("speechSynthesis"in window)availableVoices=window.speechSynthesis.getVoices()||[];
+}
+if("speechSynthesis"in window){
+ refreshVoices();
+ window.speechSynthesis.onvoiceschanged=refreshVoices;
+}
+function startTimerMode(){
+ if(revealed||timerStarted)return;
+ stopAutoNext();timerStarted=true;timerPaused=false;
+ $("timerLabel").textContent="Reading question and choices…";
+ const q=session[at];
+ const text=q.question+". "+q.options.map((o,i)=>"Option "+String.fromCharCode(65+i)+". "+o.text).join(". ");
+ const startAfterReading=()=>{if(timerStarted&&!timerPaused&&!revealed&&!$("play").classList.contains("hidden"))beginCountdown()};
+ if(!("speechSynthesis"in window)){startAfterReading();return;}
+ window.speechSynthesis.cancel();
+ const u=new SpeechSynthesisUtterance(text);u.rate=rate;u.pitch=1.03;
+ const voices=window.speechSynthesis.getVoices();
+ const hints=/samantha|ava|zoe|karen|tessa|moira|fiona|female|serena|victoria|susan|allison|joanna|aria/i;
+ const en=voices.filter(v=>/^en(-|$)/i.test(v.lang));
+ const voice=en.find(v=>hints.test(v.name))||en[0]||voices[0];
+ if(voice)u.voice=voice;
+ let completed=false;
+ const done=()=>{if(completed)return;completed=true;startAfterReading()};
+ u.onend=done;u.onerror=done;
+ window.speechSynthesis.speak(u);
+}
+function beginCountdown(){if(!timerStarted||timerPaused||revealed)return;$("timerLabel").textContent="Countdown running";startTimer()}
+function begin(list=bank){
+ stopPlayback();
+ session=shuffle(list.map(q=>({...q,options:shuffle(q.options.map(o=>({...o}))),chosen:null})));
+ log=[];at=0;auto=$("autoHome").checked;rate=+$("speedHome").value;
+ quizMode=document.querySelector('input[name="quizMode"]:checked').value;
+ $("autoPlay").checked=auto;$("autoLabel").textContent=auto?"ON":"OFF";$("speedPlay").value=String(rate);
+ $("luck").classList.add("show");show("play");
+ if(quizMode==="timer"){
+  // Let the complete Good Luck animation finish before the first question is spoken.
+  setTimeout(()=>{$("luck").classList.remove("show");if(!$("play").classList.contains("hidden"))render()},1500);
+ }else{
+  setTimeout(()=>$("luck").classList.remove("show"),1200);
+  render();
+ }
+}
+function render(){
+ stopTimer();stopAutoNext();if("speechSynthesis"in window)window.speechSynthesis.cancel();
+ revealed=false;timerStarted=false;timerPaused=false;timer=+$("timeChoice").value;left=timer;
+ const q=session[at];$("counter").textContent=`Question ${at+1} of ${session.length}`;
+ $("liveScore").textContent=`Correct: ${log.filter(x=>x&&x.correct).length}`;
+ $("bar").style.width=((at+1)/session.length*100)+"%";$("subject").textContent=q.subject;
+ $("question").textContent=q.question;$("answers").innerHTML="";
+ q.options.forEach((o,i)=>{const btn=document.createElement("button");btn.className="answer";btn.textContent=String.fromCharCode(65+i)+". "+o.text;btn.onclick=()=>choose(i);$("answers").appendChild(btn)});
+ $("feedback").textContent="";$("feedback").className="feedback";$("explanation").classList.add("hidden");$("explanation").textContent="";
+ $("reveal").disabled=false;$("reveal").textContent="Reveal Answer";
+ const timed=quizMode==="timer";$("timerbox").classList.toggle("hidden",!timed);$("timerSettings").classList.toggle("hidden",!timed);
+ $("timerLabel").textContent=timed?"Reading question and choices…":"Normal Mode";
+ $("time").textContent=timer;$("timerfill").style.width="100%";
+ if(timed){$("timerLabel").textContent="Reading question and choices…";startTimerMode()}else if(auto)readQ();
+}
+function choose(i){
+ const q=session[at];if(revealed||q.chosen!==null)return;
+ q.chosen=i;
+ const ok=q.options[i].correct;
+ log[at]={question:q,chosen:i,correct:ok};
+ stopTimer();
+ reveal(false);
+ $("feedback").textContent=ok?"✓ Correct!":"✗ Incorrect.";
+ $("feedback").className="feedback "+(ok?"good":"bad");
+ const correctText=q.options.find(o=>o.correct)?.text||"";
+ if(quizMode==="timer"){
+  const spoken=ok?"Correct. The correct answer is "+correctText+".":"Incorrect. The correct answer is "+correctText+".";
+  say(spoken,()=>{if(revealed&&$("timerAutoNext").checked)next()});
+ }else{
+  say(ok?"Correct.":"Incorrect. The correct answer is "+correctText+".");
+ }
+}
+function reveal(expired){
+ if(revealed)return;
+ revealed=true;stopTimer();timerStarted=false;timerPaused=false;stopAutoNext();
+ if("speechSynthesis"in window)window.speechSynthesis.cancel();
+ const q=session[at],ci=q.options.findIndex(o=>o.correct);
+ [...$("answers").children].forEach((btn,i)=>{
+  btn.disabled=true;
+  if(i===ci)btn.classList.add("correct");
+  if(q.chosen===i&&!q.options[i].correct)btn.classList.add("wrong");
+ });
+ if(q.chosen===null){
+  log[at]={question:q,chosen:null,correct:false};
+  $("feedback").textContent=expired?"Time is up! Correct answer revealed.":"Correct answer revealed.";
+  $("feedback").className="feedback bad";
+ }
+ $("reveal").disabled=true;$("reveal").textContent="Answer Revealed";
+ $("timerLabel").textContent=expired?"Time expired":"Answer revealed";
+ if(q.explanation){
+  $("explanation").textContent="Explanation: "+q.explanation;
+  $("explanation").classList.remove("hidden");
+ }
+ // Timer Mode announces the answer only when the countdown expires unanswered.
+ // If the user answered early, choose() announces feedback and then advances.
+ if(quizMode==="timer"&&q.chosen===null){
+  say("The correct answer is "+q.options[ci].text+".",()=>{if(revealed&&$("timerAutoNext").checked)next()});
+ }else if(expired&&quizMode!=="timer"){
+  say("Time is up. The correct answer is "+q.options[ci].text+".");
+ }
+}
+function next(){stopTimer();stopAutoNext();if("speechSynthesis"in window)window.speechSynthesis.cancel();if(!revealed){if(session[at].chosen===null)log[at]={question:session[at],chosen:null,correct:false};reveal(false)}if(at<session.length-1){at++;render()}else finish()}
+function finish(){stopTimer();stopAutoNext();if("speechSynthesis"in window)window.speechSynthesis.cancel();let n=log.filter(x=>x&&x.correct).length;$("score").textContent=`${n}/${session.length}`;$("overall").textContent=`${Math.round(n/session.length*100)}% correct`;$("breakdown").innerHTML=[...new Set(session.map(q=>q.subject))].map(s=>{let a=log.filter(x=>x&&x.question.subject===s);return `<div class="explanation"><b>${esc(s)}</b><br>${a.filter(x=>x.correct).length}/${a.length} correct</div>`}).join("");$("review").innerHTML=log.map((x,i)=>{let q=x.question,ans=x.chosen===null?"Not answered":q.options[x.chosen].text,correct=q.options.find(o=>o.correct).text;return `<div class="review"><b>${i+1}. ${esc(q.question)}</b><p class="${x.correct?"right":"wrongtxt"}">Your answer: ${esc(ans)}</p><p class="right">Correct answer: ${esc(correct)}</p>${q.explanation?`<p>${esc(q.explanation)}</p>`:""}</div>`}).join("");$("retakeWrong").disabled=!log.some(x=>!x.correct);show("result")}
+$("start").onclick=()=>begin();$("reveal").onclick=()=>reveal(false);$("next").onclick=next;$("finish").onclick=finish;$("read").onclick=readQ;$("explain").onclick=()=>{let e=session[at].explanation||"No explanation is included in this question file.";$("explanation").textContent="Explanation: "+e;$("explanation").classList.remove("hidden");say(e)};$("autoPlay").onchange=()=>{auto=$("autoPlay").checked;$("autoLabel").textContent=auto?"ON":"OFF"};$("speedHome").onchange=()=>{rate=+$("speedHome").value;$("speedPlay").value=String(rate)};
+$("speedPlay").onchange=()=>{rate=+$("speedPlay").value;$("speedHome").value=String(rate)};
+$("timeChoice").onchange=()=>{
+ timer=+$("timeChoice").value;left=timer;
+ $("time").textContent=timer;$("timerfill").style.width="100%";
+ if(quizMode==="timer"&&timerStarted&&!revealed){
+  stopTimer();timerStarted=false;startTimerMode();
+ }
+};
+
+$("retakeWrong").onclick=()=>begin(session.filter((q,i)=>!log[i].correct));$("retakeAll").onclick=()=>begin(session);$("homeBtn").onclick=()=>{stopPlayback();show("home");updateHome()};$("mainMenu").onclick=()=>{stopPlayback();bank=[];updateHome();show("home")};$("exit").onclick=()=>{stopPlayback();show("home")};
+</script></body></html>
