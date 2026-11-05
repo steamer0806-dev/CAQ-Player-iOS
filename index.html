@@ -88,17 +88,16 @@ function choose(i){
  reveal(false);
  $("feedback").textContent=ok?"✓ Correct!":"✗ Incorrect.";
  $("feedback").className="feedback "+(ok?"good":"bad");
- let correctText=q.options.find(o=>o.correct)?.text||"";
- let spoken=ok?"Correct.":"Incorrect. The correct answer is "+correctText+".";
- if(quizMode==="timer")say(spoken,()=>{if(revealed)next()});
- else say(spoken);
+ const correctText=q.options.find(o=>o.correct)?.text||"";
+ const spoken=ok?"Correct.":"Incorrect. The correct answer is "+correctText+".";
+ if(quizMode==="timer")say(spoken,()=>{if(revealed)next()});else say(spoken);
 }
 function reveal(expired){
  if(revealed)return;
  revealed=true;stopTimer();timerStarted=false;timerPaused=false;stopAutoNext();
  if("speechSynthesis"in window)window.speechSynthesis.cancel();
- let q=session[at],ci=q.options.findIndex(o=>o.correct);
- [...$("answers").children].forEach((b,i)=>{b.disabled=true;if(i===ci)b.classList.add("correct");if(q.chosen===i&&!q.options[i].correct)b.classList.add("wrong")});
+ const q=session[at],ci=q.options.findIndex(o=>o.correct);
+ [...$("answers").children].forEach((btn,i)=>{btn.disabled=true;if(i===ci)btn.classList.add("correct");if(q.chosen===i&&!q.options[i].correct)btn.classList.add("wrong")});
  if(q.chosen===null){
   log[at]={question:q,chosen:null,correct:false};
   $("feedback").textContent=expired?"Time is up! Correct answer revealed.":"Correct answer revealed.";
@@ -108,9 +107,9 @@ function reveal(expired){
  $("timerLabel").textContent=expired?"Time expired":"Answer revealed";
  if(q.explanation){$("explanation").textContent="Explanation: "+q.explanation;$("explanation").classList.remove("hidden")}
  if(quizMode==="timer"){
-  let spoken=(expired||q.chosen===null)?"The correct answer is "+q.options[ci].text+".":"Answer revealed.";
+  const spoken=q.chosen===null?"The correct answer is "+q.options[ci].text+".":"Answer revealed.";
   say(spoken,()=>{if(revealed)next()});
- }else if(expired){say("Time is up. The correct answer is "+q.options[ci].text+".")}
+ }else if(expired)say("Time is up. The correct answer is "+q.options[ci].text+".");
 }
 function next(){stopTimer();stopAutoNext();if("speechSynthesis"in window)window.speechSynthesis.cancel();if(!revealed){if(session[at].chosen===null)log[at]={question:session[at],chosen:null,correct:false};reveal(false)}if(at<session.length-1){at++;render()}else finish()}
 function finish(){stopTimer();stopAutoNext();if("speechSynthesis"in window)window.speechSynthesis.cancel();let n=log.filter(x=>x&&x.correct).length;$("score").textContent=`${n}/${session.length}`;$("overall").textContent=`${Math.round(n/session.length*100)}% correct`;$("breakdown").innerHTML=[...new Set(session.map(q=>q.subject))].map(s=>{let a=log.filter(x=>x&&x.question.subject===s);return `<div class="explanation"><b>${esc(s)}</b><br>${a.filter(x=>x.correct).length}/${a.length} correct</div>`}).join("");$("review").innerHTML=log.map((x,i)=>{let q=x.question,ans=x.chosen===null?"Not answered":q.options[x.chosen].text,correct=q.options.find(o=>o.correct).text;return `<div class="review"><b>${i+1}. ${esc(q.question)}</b><p class="${x.correct?"right":"wrongtxt"}">Your answer: ${esc(ans)}</p><p class="right">Correct answer: ${esc(correct)}</p>${q.explanation?`<p>${esc(q.explanation)}</p>`:""}</div>`}).join("");$("retakeWrong").disabled=!log.some(x=>!x.correct);show("result")}
